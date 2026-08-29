@@ -6,7 +6,7 @@ import Navbar from '../../components/layout/Navbar';
 import PropertyCard, { PropertyCardProps } from '../../components/home/PropertyCard';
 import { SlidersHorizontal, Minus, Plus, RefreshCw, Star, Zap, Award, SearchX, ArrowLeft } from 'lucide-react';
 
-const allSearchMockProperties: PropertyCardProps[] = [
+const fallbackMockProperties: PropertyCardProps[] = [
   {
     id: 'stay-001',
     title: 'Ocean Breeze Villa',
@@ -68,7 +68,10 @@ function SearchContent() {
   const checkOut = searchParams ? (searchParams.get('checkOut') || '2026-09-14') : '2026-09-14';
   const guests = searchParams ? (searchParams.get('guests') || '2') : '2';
 
-  // Filters State (default to immediate render)
+  // Backend Fetched Properties State
+  const [dbListings, setDbListings] = useState<PropertyCardProps[]>(fallbackMockProperties);
+
+  // Filters State
   const [maxPrice, setMaxPrice] = useState<number>(25000);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [bedrooms, setBedrooms] = useState<number>(1);
@@ -92,6 +95,42 @@ function SearchContent() {
     'Fireplace',
     'Free Breakfast'
   ];
+
+  // Real REST API Fetch from Backend (/api/listings)
+  useEffect(() => {
+    async function fetchFromBackend() {
+      setIsLoading(true);
+      try {
+        const queryParams = new URLSearchParams();
+        if (whereQuery) queryParams.append('search', whereQuery);
+
+        const res = await fetch(`http://localhost:5001/api/listings?${queryParams.toString()}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.data && json.data.length > 0) {
+            setDbListings(json.data);
+          } else if (whereQuery.trim()) {
+            setDbListings([]);
+          }
+        }
+      } catch (err) {
+        // Fallback local match if API offline
+        let filtered = [...fallbackMockProperties];
+        if (whereQuery.trim()) {
+          const q = whereQuery.toLowerCase().trim();
+          filtered = filtered.filter(p =>
+            p.location.toLowerCase().includes(q) ||
+            p.title.toLowerCase().includes(q)
+          );
+        }
+        setDbListings(filtered);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchFromBackend();
+  }, [whereQuery]);
 
   const toggleType = (type: string) => {
     setSelectedTypes(prev =>
@@ -117,18 +156,8 @@ function SearchContent() {
     setSelectedAmenities([]);
   };
 
-  // Filter properties matching query & criteria
-  const filteredProperties = allSearchMockProperties.filter(p => {
-    // Destination match
-    if (whereQuery && whereQuery.trim()) {
-      const q = whereQuery.toLowerCase().trim();
-      const matchesLocation =
-        p.location.toLowerCase().includes(q) ||
-        p.country.toLowerCase().includes(q) ||
-        p.title.toLowerCase().includes(q);
-      if (!matchesLocation) return false;
-    }
-
+  // Live Client Filter Pipeline on Database Listings
+  const filteredProperties = dbListings.filter(p => {
     if (p.pricePerNight > maxPrice) return false;
     if (minRating > 0 && p.rating < minRating) return false;
     if (superhostOnly && !p.isSuperhost) return false;
@@ -167,7 +196,7 @@ function SearchContent() {
           </div>
 
           <span className="text-xs md:text-sm bg-white border border-gray-300 px-4 py-2 rounded-full font-bold text-gray-800 shadow-sm">
-            {`${filteredProperties.length} properties found`}
+            {isLoading ? 'Fetching backend API...' : `${filteredProperties.length} properties found`}
           </span>
         </div>
       </div>
@@ -330,8 +359,17 @@ function SearchContent() {
 
         {/* Results Main Area */}
         <main className="flex-1">
-          {filteredProperties.length === 0 ? (
-            /* Empty Search Results State */
+          {isLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="animate-pulse space-y-3">
+                  <div className="aspect-[4/3] bg-gray-200 rounded-3xl" />
+                  <div className="h-4 bg-gray-200 rounded w-3/4" />
+                  <div className="h-3 bg-gray-200 rounded w-1/2" />
+                </div>
+              ))}
+            </div>
+          ) : filteredProperties.length === 0 ? (
             <div className="text-center py-24 bg-gray-50 rounded-3xl border border-gray-200 p-8 space-y-4">
               <div className="w-16 h-16 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center mx-auto">
                 <SearchX className="w-8 h-8" />
@@ -359,7 +397,6 @@ function SearchContent() {
               </div>
             </div>
           ) : (
-            /* Property Card Grid */
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
               {filteredProperties.map((property) => (
                 <PropertyCard key={property.id} property={property} />
@@ -379,7 +416,7 @@ export default function SearchPage() {
       <Suspense fallback={
         <div className="max-w-[1440px] mx-auto px-8 py-12 flex-1 w-full">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {allSearchMockProperties.map((property) => (
+            {fallbackMockProperties.map((property) => (
               <PropertyCard key={property.id} property={property} />
             ))}
           </div>

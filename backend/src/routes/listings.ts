@@ -1,39 +1,29 @@
 import { Router, Request, Response } from 'express';
-import { mockListings } from '../data/mockListings';
+import db from '../services/db';
 
 const router = Router();
 
-// GET /api/listings - Get all listings (supports ?category= and ?search=)
+// GET /api/listings - Query property listings from Database (supports ?category= and ?search=)
 router.get('/', (req: Request, res: Response) => {
   const { category, search } = req.query;
 
-  let result = [...mockListings];
-
-  if (category && typeof category === 'string' && category.toLowerCase() !== 'all') {
-    result = result.filter(item => item.category.toLowerCase() === category.toLowerCase());
-  }
-
-  if (search && typeof search === 'string') {
-    const q = search.toLowerCase();
-    result = result.filter(item =>
-      item.title.toLowerCase().includes(q) ||
-      item.location.toLowerCase().includes(q) ||
-      item.country.toLowerCase().includes(q)
-    );
-  }
+  const listings = db.getListings(
+    typeof category === 'string' ? category : undefined,
+    typeof search === 'string' ? search : undefined
+  );
 
   res.json({
     success: true,
-    count: result.length,
-    data: result
+    count: listings.length,
+    data: listings
   });
 });
 
-// GET /api/listings/:id - Get listing details
+// GET /api/listings/:id - Fetch single property details from Database
 router.get('/:id', (req: Request, res: Response) => {
-  const listing = mockListings.find(item => item.id === req.params.id);
+  const listing = db.getListingById(req.params.id);
   if (!listing) {
-    return res.status(404).json({ success: false, message: 'Listing not found' });
+    return res.status(404).json({ success: false, message: 'Property listing not found in database' });
   }
   res.json({ success: true, data: listing });
 });
