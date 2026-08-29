@@ -12,7 +12,15 @@ export default function Navbar() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const handleRoleSwitch = (role: 'Guest' | 'Host' | 'Admin') => {
-    login(`demo_${role.toLowerCase()}@staynest.com`, role);
+    login(
+      {
+        id: role === 'Host' ? 'user-host-01' : role === 'Admin' ? 'user-admin-01' : 'user-guest-01',
+        name: role === 'Host' ? 'Rahul' : role === 'Admin' ? 'Admin User' : 'Amit Sharma',
+        email: `demo_${role.toLowerCase()}@staynest.com`,
+        role
+      },
+      'demo-jwt-token-2026'
+    );
     if (role === 'Host') router.push('/host');
     else if (role === 'Admin') router.push('/admin');
     else router.push('/');
