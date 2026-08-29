@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Navbar from '../../components/layout/Navbar';
 import PropertyCard, { PropertyCardProps } from '../../components/home/PropertyCard';
-import { SlidersHorizontal, Minus, Plus, RefreshCw, Star, Zap, Award } from 'lucide-react';
+import { SlidersHorizontal, Minus, Plus, RefreshCw, Star, Zap, Award, SearchX, ArrowLeft } from 'lucide-react';
 
 const allSearchMockProperties: PropertyCardProps[] = [
   {
@@ -60,14 +60,15 @@ const allSearchMockProperties: PropertyCardProps[] = [
 ];
 
 function SearchContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const where = searchParams.get('where') || '';
+  const whereQuery = searchParams.get('where') || '';
   const checkIn = searchParams.get('checkIn') || '2026-09-10';
   const checkOut = searchParams.get('checkOut') || '2026-09-14';
   const guests = searchParams.get('guests') || '2';
 
-  // Section 6 Filters State
-  const [maxPrice, setMaxPrice] = useState<number>(20000);
+  // Filters State
+  const [maxPrice, setMaxPrice] = useState<number>(25000);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [bedrooms, setBedrooms] = useState<number>(1);
   const [beds, setBeds] = useState<number>(1);
@@ -76,6 +77,7 @@ function SearchContent() {
   const [instantBook, setInstantBook] = useState<boolean>(false);
   const [superhostOnly, setSuperhostOnly] = useState<boolean>(false);
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const propertyTypes = ['Villa', 'Apartment', 'House', 'Cabin', 'Hotel', 'Resort'];
   const amenitiesList = [
@@ -89,6 +91,15 @@ function SearchContent() {
     'Fireplace',
     'Free Breakfast'
   ];
+
+  // Simulate smooth loading transition
+  useEffect(() => {
+    setIsLoading(true);
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [whereQuery, maxPrice, selectedTypes, minRating, superhostOnly]);
 
   const toggleType = (type: string) => {
     setSelectedTypes(prev =>
@@ -114,41 +125,64 @@ function SearchContent() {
     setSelectedAmenities([]);
   };
 
-  // Live Filter logic
+  // Filter properties matching query & criteria
   const filteredProperties = allSearchMockProperties.filter(p => {
+    // Destination match
+    if (whereQuery.trim()) {
+      const q = whereQuery.toLowerCase().trim();
+      const matchesLocation =
+        p.location.toLowerCase().includes(q) ||
+        p.country.toLowerCase().includes(q) ||
+        p.title.toLowerCase().includes(q);
+      if (!matchesLocation) return false;
+    }
+
     if (p.pricePerNight > maxPrice) return false;
     if (minRating > 0 && p.rating < minRating) return false;
     if (superhostOnly && !p.isSuperhost) return false;
+
     if (selectedTypes.length > 0) {
-      const matchesType = selectedTypes.some(t => p.title.toLowerCase().includes(t.toLowerCase()) || (p as any).propertyType === t);
-      if (!matchesType && selectedTypes.length > 0 && !selectedTypes.includes('Villa')) return false;
+      const matchesType = selectedTypes.some(t =>
+        p.title.toLowerCase().includes(t.toLowerCase()) || (p as any).propertyType === t
+      );
+      if (!matchesType) return false;
     }
+
     return true;
   });
 
   return (
     <>
-      {/* Search Header Summary */}
-      <div className="border-b border-gray-200 bg-gray-50 py-5 px-8">
+      {/* Search Header Summary Bar */}
+      <div className="border-b border-gray-200 bg-gray-50 py-5 px-6 md:px-8">
         <div className="max-w-[1440px] mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-          <div>
-            <h1 className="text-2xl font-black text-gray-900">
-              Stays in {where || 'All Destinations'}
-            </h1>
-            <p className="text-sm text-gray-600 font-semibold mt-0.5">
-              {checkIn} → {checkOut} · {guests} guests
-            </p>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => router.push('/')}
+              className="p-2 bg-white border border-gray-300 rounded-full hover:bg-gray-100 transition shadow-sm"
+              title="Back to home"
+            >
+              <ArrowLeft className="w-4 h-4 text-gray-700" />
+            </button>
+            <div>
+              <h1 className="text-xl md:text-2xl font-black text-gray-900">
+                {whereQuery ? `Stays in "${whereQuery}"` : 'All Available Stays'}
+              </h1>
+              <p className="text-xs md:text-sm text-gray-600 font-semibold mt-0.5">
+                {checkIn} → {checkOut} · {guests} guests
+              </p>
+            </div>
           </div>
-          <span className="text-sm bg-white border border-gray-300 px-4 py-2 rounded-full font-bold text-gray-800 shadow-sm">
-            {filteredProperties.length} properties available
+
+          <span className="text-xs md:text-sm bg-white border border-gray-300 px-4 py-2 rounded-full font-bold text-gray-800 shadow-sm">
+            {isLoading ? 'Searching...' : `${filteredProperties.length} properties found`}
           </span>
         </div>
       </div>
 
-      <div className="max-w-[1440px] mx-auto px-8 py-10 flex-1 w-full flex flex-col md:flex-row gap-10">
-        {/* Full Section 6 Filters Sidebar */}
-        <aside className="w-full md:w-80 bg-white border border-gray-200 rounded-3xl p-6 h-fit shadow-sm space-y-6 shrink-0 divide-y divide-gray-100">
-          {/* Header */}
+      <div className="max-w-[1440px] mx-auto px-6 md:px-8 py-10 flex-1 w-full flex flex-col lg:flex-row gap-10">
+        {/* Sidebar Filters */}
+        <aside className="w-full lg:w-80 bg-white border border-gray-200 rounded-3xl p-6 h-fit shadow-sm space-y-6 divide-y divide-gray-100 shrink-0">
           <div className="flex items-center justify-between pb-2">
             <h2 className="font-extrabold text-lg text-gray-900 flex items-center gap-2">
               <SlidersHorizontal className="w-5 h-5 text-brand-500" />
@@ -182,7 +216,7 @@ function SearchContent() {
             </div>
           </div>
 
-          {/* 2. Instant Booking & Superhost Toggles */}
+          {/* 2. Instant Book & Superhost */}
           <div className="pt-5 space-y-3">
             <label className="block text-xs font-black text-gray-900 uppercase tracking-wider">
               Booking Features
@@ -234,13 +268,11 @@ function SearchContent() {
             </div>
           </div>
 
-          {/* 4. Bedrooms, Beds & Bathrooms Steppers */}
+          {/* 4. Rooms & Steppers */}
           <div className="pt-5 space-y-3">
             <label className="block text-xs font-black text-gray-900 uppercase tracking-wider">
-              Rooms & Beds
+              Rooms & Capacity
             </label>
-            
-            {/* Bedrooms */}
             <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-2xl p-2.5">
               <span className="text-xs text-gray-800 font-bold pl-2">Bedrooms</span>
               <div className="flex items-center gap-3">
@@ -253,46 +285,6 @@ function SearchContent() {
                 <span className="font-extrabold text-sm text-gray-900 w-4 text-center">{bedrooms}</span>
                 <button
                   onClick={() => setBedrooms(bedrooms + 1)}
-                  className="w-7 h-7 rounded-full border border-gray-300 bg-white flex items-center justify-center hover:bg-gray-200 font-bold text-gray-800 shadow-sm"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Beds */}
-            <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-2xl p-2.5">
-              <span className="text-xs text-gray-800 font-bold pl-2">Beds</span>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setBeds(Math.max(1, beds - 1))}
-                  className="w-7 h-7 rounded-full border border-gray-300 bg-white flex items-center justify-center hover:bg-gray-200 font-bold text-gray-800 shadow-sm"
-                >
-                  <Minus className="w-3.5 h-3.5" />
-                </button>
-                <span className="font-extrabold text-sm text-gray-900 w-4 text-center">{beds}</span>
-                <button
-                  onClick={() => setBeds(beds + 1)}
-                  className="w-7 h-7 rounded-full border border-gray-300 bg-white flex items-center justify-center hover:bg-gray-200 font-bold text-gray-800 shadow-sm"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Bathrooms */}
-            <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-2xl p-2.5">
-              <span className="text-xs text-gray-800 font-bold pl-2">Bathrooms</span>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setBathrooms(Math.max(1, bathrooms - 1))}
-                  className="w-7 h-7 rounded-full border border-gray-300 bg-white flex items-center justify-center hover:bg-gray-200 font-bold text-gray-800 shadow-sm"
-                >
-                  <Minus className="w-3.5 h-3.5" />
-                </button>
-                <span className="font-extrabold text-sm text-gray-900 w-4 text-center">{bathrooms}</span>
-                <button
-                  onClick={() => setBathrooms(bathrooms + 1)}
                   className="w-7 h-7 rounded-full border border-gray-300 bg-white flex items-center justify-center hover:bg-gray-200 font-bold text-gray-800 shadow-sm"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -323,7 +315,7 @@ function SearchContent() {
             </div>
           </div>
 
-          {/* 6. Amenities Checklist */}
+          {/* 6. Amenities */}
           <div className="pt-5 space-y-3">
             <label className="block text-xs font-black text-gray-900 uppercase tracking-wider">
               Amenities
@@ -344,21 +336,49 @@ function SearchContent() {
           </div>
         </aside>
 
-        {/* Search Results Grid */}
+        {/* Results Main Area */}
         <main className="flex-1">
-          {filteredProperties.length === 0 ? (
-            <div className="text-center py-24 bg-gray-50 rounded-3xl border border-gray-200">
-              <h3 className="text-xl font-bold text-gray-800">No properties match your filters</h3>
-              <p className="text-sm text-gray-500 mt-2">Try expanding your price range or resetting filters.</p>
+          {isLoading ? (
+            /* Skeleton Loading Grid */
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="animate-pulse space-y-3">
+                  <div className="aspect-[4/3] bg-gray-200 rounded-3xl" />
+                  <div className="h-4 bg-gray-200 rounded w-3/4" />
+                  <div className="h-3 bg-gray-200 rounded w-1/2" />
+                </div>
+              ))}
+            </div>
+          ) : filteredProperties.length === 0 ? (
+            /* Empty Search Results State */
+            <div className="text-center py-24 bg-gray-50 rounded-3xl border border-gray-200 p-8 space-y-4">
+              <div className="w-16 h-16 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center mx-auto">
+                <SearchX className="w-8 h-8" />
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900">
+                No stays found {whereQuery ? `for "${whereQuery}"` : ''}
+              </h3>
+              <p className="text-sm text-gray-500 max-w-md mx-auto">
+                Try searching for popular destinations like <strong className="text-gray-800">Goa</strong>, <strong className="text-gray-800">Manali</strong>, <strong className="text-gray-800">Udaipur</strong>, <strong className="text-gray-800">Kerala</strong>, or <strong className="text-gray-800">Coorg</strong>.
+              </p>
 
-              <button
-                onClick={handleResetFilters}
-                className="mt-4 bg-brand-500 hover:bg-brand-600 text-white font-bold text-sm px-6 py-3 rounded-2xl shadow-md transition"
-              >
-                Reset All Filters
-              </button>
+              <div className="flex justify-center gap-3 pt-2">
+                <button
+                  onClick={handleResetFilters}
+                  className="bg-brand-500 hover:bg-brand-600 text-white font-bold text-sm px-6 py-3 rounded-2xl shadow-md transition"
+                >
+                  Reset Filters
+                </button>
+                <button
+                  onClick={() => router.push('/search?where=')}
+                  className="bg-white border border-gray-300 hover:bg-gray-100 text-gray-800 font-bold text-sm px-6 py-3 rounded-2xl transition"
+                >
+                  View All Stays
+                </button>
+              </div>
             </div>
           ) : (
+            /* Property Card Grid */
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
               {filteredProperties.map((property) => (
                 <PropertyCard key={property.id} property={property} />
@@ -375,7 +395,7 @@ export default function SearchPage() {
   return (
     <div className="min-h-screen flex flex-col bg-white">
       <Navbar />
-      <Suspense fallback={<div className="p-12 text-center text-gray-500 font-bold">Loading StayNest filters...</div>}>
+      <Suspense fallback={<div className="p-12 text-center text-gray-500 font-bold">Loading StayNest search...</div>}>
         <SearchContent />
       </Suspense>
     </div>
