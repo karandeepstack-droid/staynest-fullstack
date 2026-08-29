@@ -62,12 +62,13 @@ const allSearchMockProperties: PropertyCardProps[] = [
 function SearchContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const whereQuery = searchParams.get('where') || '';
-  const checkIn = searchParams.get('checkIn') || '2026-09-10';
-  const checkOut = searchParams.get('checkOut') || '2026-09-14';
-  const guests = searchParams.get('guests') || '2';
+  
+  const whereQuery = searchParams ? (searchParams.get('where') || '') : '';
+  const checkIn = searchParams ? (searchParams.get('checkIn') || '2026-09-10') : '2026-09-10';
+  const checkOut = searchParams ? (searchParams.get('checkOut') || '2026-09-14') : '2026-09-14';
+  const guests = searchParams ? (searchParams.get('guests') || '2') : '2';
 
-  // Filters State
+  // Filters State (default to immediate render)
   const [maxPrice, setMaxPrice] = useState<number>(25000);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [bedrooms, setBedrooms] = useState<number>(1);
@@ -77,7 +78,7 @@ function SearchContent() {
   const [instantBook, setInstantBook] = useState<boolean>(false);
   const [superhostOnly, setSuperhostOnly] = useState<boolean>(false);
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const propertyTypes = ['Villa', 'Apartment', 'House', 'Cabin', 'Hotel', 'Resort'];
   const amenitiesList = [
@@ -91,15 +92,6 @@ function SearchContent() {
     'Fireplace',
     'Free Breakfast'
   ];
-
-  // Simulate smooth loading transition
-  useEffect(() => {
-    setIsLoading(true);
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [whereQuery, maxPrice, selectedTypes, minRating, superhostOnly]);
 
   const toggleType = (type: string) => {
     setSelectedTypes(prev =>
@@ -128,7 +120,7 @@ function SearchContent() {
   // Filter properties matching query & criteria
   const filteredProperties = allSearchMockProperties.filter(p => {
     // Destination match
-    if (whereQuery.trim()) {
+    if (whereQuery && whereQuery.trim()) {
       const q = whereQuery.toLowerCase().trim();
       const matchesLocation =
         p.location.toLowerCase().includes(q) ||
@@ -175,7 +167,7 @@ function SearchContent() {
           </div>
 
           <span className="text-xs md:text-sm bg-white border border-gray-300 px-4 py-2 rounded-full font-bold text-gray-800 shadow-sm">
-            {isLoading ? 'Searching...' : `${filteredProperties.length} properties found`}
+            {`${filteredProperties.length} properties found`}
           </span>
         </div>
       </div>
@@ -338,18 +330,7 @@ function SearchContent() {
 
         {/* Results Main Area */}
         <main className="flex-1">
-          {isLoading ? (
-            /* Skeleton Loading Grid */
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="animate-pulse space-y-3">
-                  <div className="aspect-[4/3] bg-gray-200 rounded-3xl" />
-                  <div className="h-4 bg-gray-200 rounded w-3/4" />
-                  <div className="h-3 bg-gray-200 rounded w-1/2" />
-                </div>
-              ))}
-            </div>
-          ) : filteredProperties.length === 0 ? (
+          {filteredProperties.length === 0 ? (
             /* Empty Search Results State */
             <div className="text-center py-24 bg-gray-50 rounded-3xl border border-gray-200 p-8 space-y-4">
               <div className="w-16 h-16 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center mx-auto">
@@ -395,7 +376,15 @@ export default function SearchPage() {
   return (
     <div className="min-h-screen flex flex-col bg-white">
       <Navbar />
-      <Suspense fallback={<div className="p-12 text-center text-gray-500 font-bold">Loading StayNest search...</div>}>
+      <Suspense fallback={
+        <div className="max-w-[1440px] mx-auto px-8 py-12 flex-1 w-full">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+            {allSearchMockProperties.map((property) => (
+              <PropertyCard key={property.id} property={property} />
+            ))}
+          </div>
+        </div>
+      }>
         <SearchContent />
       </Suspense>
     </div>
