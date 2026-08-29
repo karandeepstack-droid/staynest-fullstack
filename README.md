@@ -61,7 +61,7 @@ staynest/
 
 1. **Clone Repository**:
    ```bash
-   git clone https://github.com/YOUR_GITHUB_USERNAME/staynest-fullstack.git
+   git clone https://github.com/karandeepstack-droid/staynest-fullstack.git
    cd staynest-fullstack
    ```
 
