@@ -104,7 +104,7 @@ function SearchContent() {
         const queryParams = new URLSearchParams();
         if (whereQuery) queryParams.append('search', whereQuery);
 
-        const res = await fetch(`http://localhost:5001/api/listings?${queryParams.toString()}`);
+        const res = await fetch(`/api/listings?${queryParams.toString()}`);
         if (res.ok) {
           const json = await res.json();
           if (json.data && json.data.length > 0) {
