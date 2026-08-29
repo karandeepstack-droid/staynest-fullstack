@@ -1,37 +1,13 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
+import { prisma } from '../lib/prisma';
+import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'staynest_super_secret_jwt_key_2026';
+const JWT_SECRET = process.env.JWT_SECRET || 'staynest-secret-key-2026';
 
-// In-memory / Mock User Store (Synced with seed users)
-export let usersStore: any[] = [
-  {
-    id: 'user-guest-01',
-    name: 'Amit Sharma',
-    email: 'amit@example.com',
-    passwordHash: bcrypt.hashSync('password123', 10),
-    role: 'Guest'
-  },
-  {
-    id: 'user-host-01',
-    name: 'Rahul',
-    email: 'rahul@staynest.com',
-    passwordHash: bcrypt.hashSync('password123', 10),
-    role: 'Host'
-  },
-  {
-    id: 'user-admin-01',
-    name: 'Admin User',
-    email: 'admin@staynest.com',
-    passwordHash: bcrypt.hashSync('admin123', 10),
-    role: 'Admin'
-  }
-];
-
-// POST /api/auth/register
+// POST /api/auth/register - Register User in Prisma DB
 router.post('/register', async (req: Request, res: Response) => {
   try {
     const { name, email, password, role } = req.body;
@@ -40,34 +16,39 @@ router.post('/register', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: 'Name, email, and password are required' });
     }
 
-    const existingUser = usersStore.find(u => u.email.toLowerCase() === email.toLowerCase());
+    // Check existing user
+    const existingUser = await prisma.user.findUnique({
+      where: { email: email.toLowerCase().trim() }
+    });
+
     if (existingUser) {
       return res.status(400).json({ success: false, message: 'User with this email already exists' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
-    const selectedRole = (role === 'Host' || role === 'Admin') ? role : 'Guest';
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const userRole = role === 'Host' ? 'Host' : 'Guest';
 
-    const newUser = {
-      id: `user-${Date.now()}`,
-      name,
-      email,
-      passwordHash,
-      role: selectedRole,
-      createdAt: new Date().toISOString()
-    };
+    // Create User in database
+    const newUser = await prisma.user.create({
+      data: {
+        name,
+        email: email.toLowerCase().trim(),
+        password: hashedPassword,
+        role: userRole
+      }
+    });
 
-    usersStore.push(newUser);
-
+    // Sign JWT token
     const token = jwt.sign(
-      { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role },
+      { userId: newUser.id, email: newUser.email, role: newUser.role },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
 
     res.status(201).json({
       success: true,
-      message: 'Account created successfully',
+      message: 'User registered successfully',
       token,
       user: {
         id: newUser.id,
@@ -76,12 +57,13 @@ router.post('/register', async (req: Request, res: Response) => {
         role: newUser.role
       }
     });
-  } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+  } catch (error: any) {
+    console.error('Registration error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Server error during registration' });
   }
 });
 
-// POST /api/auth/login
+// POST /api/auth/login - Authenticate User in Prisma DB & return JWT
 router.post('/login', async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
@@ -90,43 +72,63 @@ router.post('/login', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: 'Email and password are required' });
     }
 
-    const user = usersStore.find(u => u.email.toLowerCase() === email.toLowerCase());
+    // Find User in database
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase().trim() }
+    });
+
     if (!user) {
-      return res.status(400).json({ success: false, message: 'Invalid email or password' });
+      return res.status(401).json({ success: false, message: 'Invalid email or password' });
     }
 
-    const isMatch = await bcrypt.compare(password, user.passwordHash);
-    if (!isMatch) {
-      return res.status(400).json({ success: false, message: 'Invalid email or password' });
+    // Verify Password with bcrypt
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ success: false, message: 'Invalid email or password' });
     }
 
+    // Sign JWT Token
     const token = jwt.sign(
-      { id: user.id, name: user.name, email: user.email, role: user.role },
+      { userId: user.id, email: user.email, role: user.role },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
 
     res.json({
       success: true,
+      message: 'Login successful',
       token,
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
+        avatar: user.avatar
       }
     });
-  } catch (err: any) {
-    res.status(500).json({ success: false, message: err.message });
+  } catch (error: any) {
+    console.error('Login error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Server error during login' });
   }
 });
 
-// GET /api/auth/me
-router.get('/me', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
-  res.json({
-    success: true,
-    user: req.user
-  });
+// GET /api/auth/me - Fetch authenticated user profile
+router.get('/me', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.userId;
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true, role: true, avatar: true, createdAt: true }
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User profile not found' });
+    }
+
+    res.json({ success: true, user });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || 'Server error' });
+  }
 });
 
 export default router;

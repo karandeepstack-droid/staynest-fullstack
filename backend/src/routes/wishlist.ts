@@ -1,46 +1,40 @@
-import { Router, Response } from 'express';
-import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
+import { Router, Request, Response } from 'express';
+import { authenticateToken } from '../middleware/auth';
+import db from '../services/db';
 
 const router = Router();
 
-let wishlistStore: { [userId: string]: string[] } = {
-  'user-01': ['stay-001']
-};
+router.use(authenticateToken as any);
 
-// GET /api/wishlist
-router.get('/', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
-  const userId = req.user?.id || 'user-01';
-  const saved = wishlistStore[userId] || [];
-  res.json({ success: true, data: saved });
+// GET /api/wishlist - Get user wishlist
+router.get('/', (req: Request, res: Response) => {
+  const userId = (req as any).user?.userId || 'user-guest-01';
+  const wishlistPropertyIds = db.getWishlist(userId);
+  const properties = wishlistPropertyIds
+    .map(id => db.getListingById(id))
+    .filter(Boolean);
+
+  res.json({ success: true, count: properties.length, data: properties });
 });
 
-// POST /api/wishlist - Add property
-router.post('/', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
-  const userId = req.user?.id || 'user-01';
+// POST /api/wishlist/toggle - Toggle wishlist property
+router.post('/toggle', (req: Request, res: Response) => {
   const { propertyId } = req.body;
+  const userId = (req as any).user?.userId || 'user-guest-01';
 
   if (!propertyId) {
-    return res.status(400).json({ success: false, message: 'Property ID required' });
+    return res.status(400).json({ success: false, message: 'Property ID is required' });
   }
 
-  if (!wishlistStore[userId]) wishlistStore[userId] = [];
-  if (!wishlistStore[userId].includes(propertyId)) {
-    wishlistStore[userId].push(propertyId);
-  }
+  const updatedWishlist = db.toggleWishlist(userId, propertyId);
+  const isSaved = updatedWishlist.includes(propertyId);
 
-  res.json({ success: true, data: wishlistStore[userId] });
-});
-
-// DELETE /api/wishlist/:propertyId - Remove property
-router.delete('/:propertyId', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
-  const userId = req.user?.id || 'user-01';
-  const { propertyId } = req.params;
-
-  if (wishlistStore[userId]) {
-    wishlistStore[userId] = wishlistStore[userId].filter(id => id !== propertyId);
-  }
-
-  res.json({ success: true, data: wishlistStore[userId] || [] });
+  res.json({
+    success: true,
+    message: isSaved ? 'Saved to wishlist ❤️' : 'Removed from wishlist',
+    isSaved,
+    wishlist: updatedWishlist
+  });
 });
 
 export default router;

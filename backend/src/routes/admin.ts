@@ -1,44 +1,53 @@
-import { Router, Response } from 'express';
-import { authenticateToken, requireRole, AuthenticatedRequest } from '../middleware/auth';
-import { usersStore } from './auth';
-import { mockListings } from '../data/mockListings';
+import { Router, Request, Response } from 'express';
+import { authenticateToken, requireRole } from '../middleware/auth';
+import db from '../services/db';
 
 const router = Router();
 
-// Apply auth + Admin role requirement to all admin routes
+// Protect all admin routes
 router.use(authenticateToken as any);
 router.use(requireRole(['Admin']) as any);
 
 // GET /api/admin/stats - Admin platform statistics
-router.get('/stats', (req: AuthenticatedRequest, res: Response) => {
+router.get('/stats', (req: Request, res: Response) => {
+  const users = db.getAllUsers();
+  const bookings = db.getBookings();
+  const listings = db.getListings();
+
+  const totalRevenue = bookings.reduce((sum: number, b: any) => sum + b.totalPrice, 0);
+
   res.json({
     success: true,
     data: {
-      totalUsers: usersStore.length,
-      totalHosts: usersStore.filter(u => u.role === 'Host').length,
-      totalProperties: mockListings.length,
-      totalBookings: 18,
-      platformRevenue: 28500
+      totalUsers: users.length,
+      totalHosts: users.filter((u: any) => u.role === 'Host').length,
+      totalGuests: users.filter((u: any) => u.role === 'Guest').length,
+      totalListings: listings.length,
+      totalBookings: bookings.length,
+      totalRevenue
     }
   });
 });
 
-// GET /api/admin/users - View all users and hosts
-router.get('/users', (req: AuthenticatedRequest, res: Response) => {
-  const safeUsers = usersStore.map(u => ({
+// GET /api/admin/users - Admin fetch all users
+router.get('/users', (req: Request, res: Response) => {
+  const users = db.getAllUsers().map(u => ({
     id: u.id,
     name: u.name,
     email: u.email,
     role: u.role,
-    status: u.isSuspended ? 'Suspended' : 'Active'
+    isSuspended: !!u.isSuspended,
+    createdAt: u.createdAt
   }));
 
-  res.json({ success: true, data: safeUsers });
+  res.json({ success: true, count: users.length, data: users });
 });
 
-// POST /api/admin/users/:id/suspend - Suspend user
-router.post('/users/:id/suspend', (req: AuthenticatedRequest, res: Response) => {
-  const user = usersStore.find(u => u.id === req.params.id);
+// POST /api/admin/users/:id/suspend - Admin suspend or reactivate user
+router.post('/users/:id/suspend', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const user = db.getAllUsers().find(u => u.id === id);
+
   if (!user) {
     return res.status(404).json({ success: false, message: 'User not found' });
   }
@@ -47,8 +56,13 @@ router.post('/users/:id/suspend', (req: AuthenticatedRequest, res: Response) => 
 
   res.json({
     success: true,
-    message: `User ${user.name} has been ${user.isSuspended ? 'suspended' : 'reactivated'}`,
-    data: user
+    message: `User ${user.name} ${user.isSuspended ? 'suspended' : 'reactivated'} successfully`,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      isSuspended: user.isSuspended
+    }
   });
 });
 

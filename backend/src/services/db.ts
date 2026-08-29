@@ -167,21 +167,24 @@ class StayNestDatabase {
       name: 'Rahul',
       email: 'rahul@staynest.com',
       passwordHash: bcrypt.hashSync('password123', 10),
-      role: 'Host'
+      role: 'Host',
+      createdAt: new Date().toISOString()
     },
     {
       id: 'user-guest-01',
       name: 'Amit Sharma',
       email: 'amit@example.com',
       passwordHash: bcrypt.hashSync('password123', 10),
-      role: 'Guest'
+      role: 'Guest',
+      createdAt: new Date().toISOString()
     },
     {
       id: 'user-admin-01',
       name: 'Admin User',
       email: 'admin@staynest.com',
       passwordHash: bcrypt.hashSync('admin123', 10),
-      role: 'Admin'
+      role: 'Admin',
+      createdAt: new Date().toISOString()
     }
   ];
 
@@ -230,7 +233,7 @@ class StayNestDatabase {
     if (category && category.toLowerCase() !== 'all') {
       result = result.filter(item =>
         item.category.toLowerCase() === category.toLowerCase() ||
-        item.propertyType.toLowerCase() === category.toLowerCase()
+        (item.propertyType && item.propertyType.toLowerCase() === category.toLowerCase())
       );
     }
 
@@ -239,7 +242,7 @@ class StayNestDatabase {
       result = result.filter(item =>
         item.title.toLowerCase().includes(q) ||
         item.location.toLowerCase().includes(q) ||
-        item.country.toLowerCase().includes(q) ||
+        (item.country && item.country.toLowerCase().includes(q)) ||
         item.category.toLowerCase().includes(q)
       );
     }
